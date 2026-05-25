@@ -1,0 +1,13 @@
+# Local dev: run API on host (hot reload), only Qdrant in Docker.
+# Usage: docker compose -f docker-compose.dev.yml up -d
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.5
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+
+volumes:
+  qdrant_storage:
