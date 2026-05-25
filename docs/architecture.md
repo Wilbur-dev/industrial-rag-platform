@@ -33,11 +33,8 @@ flowchart TB
 | `app/rag/embedding.py` | Sentence-transformer encode | 1–4 |
 | `app/rag/vector_store.py` | Qdrant upsert / search | 1–5 |
 | `app/rag/pipeline.py` | Index + retrieve + query | 1–6 |
-| `app/rag/prompts.py` | Versioned prompt templates | 2 |
-| `app/rag/grounding.py` | Citation + refusal checks | 2 |
-| `app/exceptions.py` | Structured API errors | 2 |
 | `training/` | Reranker (placeholder) | 3 |
-| `evaluation/` | Hit@K, Recall@K, MRR | 2 |
+| `evaluation/` | Hit@K metrics (placeholder) | 2 |
 
 ## Request flows
 
@@ -53,14 +50,7 @@ flowchart TB
 1. Question → query embedding
 2. Qdrant cosine search → top-k `RetrievedChunk`
 3. Context assembly → LLM or retrieval-only answer
-4. `PromptBuilder` → LLM or retrieval-only answer
-5. `grounding` report + `citations` + `latency_ms`
-
-### Evaluation flow (Week 2)
-
-1. Labeled `data/eval/retrieval_benchmark.json`
-2. For each query → retrieve top-k chunk ids
-3. `evaluation/metrics.py` → Hit@K, Recall@K, MRR
+4. Response with `citations` and `latency_ms`
 
 ## Design decisions (interview prep)
 

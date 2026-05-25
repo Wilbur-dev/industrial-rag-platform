@@ -1,20 +1,13 @@
-"""API routes — health, ingest, retrieve, query, evaluation (Week 2)."""
+"""API routes — health, ingest, retrieve, query."""
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from app.api.deps import get_pipeline
 from app.api.schemas import (
-    EvaluateRequest,
-    EvaluateResponse,
-    ExperimentRequest,
-    ExperimentResponse,
-    ExperimentRun,
-    GroundingReport,
     HealthResponse,
     IngestResponse,
-    PromptVersionInfo,
     QueryRequest,
     QueryResponse,
     RetrieveHit,
@@ -22,11 +15,8 @@ from app.api.schemas import (
     RetrieveResponse,
 )
 from app.config import get_settings
-from app.exceptions import IngestionError, NotFoundError, RetrievalError
 from app.rag.pipeline import RAGPipeline
-from app.rag.prompts import PromptBuilder
 from app.rag.vector_store import VectorStore
-from evaluation.runner import load_benchmark, run_retrieval_evaluation
 
 router = APIRouter()
 
@@ -50,15 +40,7 @@ def health_qdrant() -> dict:
             return {"qdrant": "up", "collection": "not_created_yet"}
         return {"qdrant": "up", **store.collection_info()}
     except Exception as exc:
-        raise RetrievalError(
-            "Qdrant unavailable",
-            details={"error": str(exc)},
-        ) from exc
-
-
-@router.get("/prompts", response_model=list[PromptVersionInfo])
-def list_prompts() -> list[PromptVersionInfo]:
-    return [PromptVersionInfo(**v) for v in PromptBuilder.list_versions()]
+        raise HTTPException(status_code=503, detail=f"Qdrant unavailable: {exc}") from exc
 
 
 @router.post("/ingest/upload", response_model=IngestResponse)
@@ -68,11 +50,11 @@ async def ingest_upload(
 ) -> IngestResponse:
     data = await file.read()
     if not file.filename:
-        raise IngestionError("Missing filename")
+        raise HTTPException(status_code=400, detail="Missing filename")
     try:
         result = pipeline.index_upload(file.filename, data)
     except ValueError as exc:
-        raise IngestionError(str(exc)) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return IngestResponse(**result)
 
 
@@ -83,11 +65,11 @@ def ingest_path(
 ) -> IngestResponse:
     p = Path(path)
     if not p.exists():
-        raise NotFoundError(f"File not found: {path}")
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
     try:
         result = pipeline.index_file(p)
     except ValueError as exc:
-        raise IngestionError(str(exc)) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return IngestResponse(**result)
 
 
@@ -96,11 +78,7 @@ def retrieve(
     body: RetrieveRequest,
     pipeline: RAGPipeline = Depends(get_pipeline),
 ) -> RetrieveResponse:
-    hits = pipeline.retrieve(
-        body.query,
-        body.top_k,
-        score_threshold=body.score_threshold,
-    )
+    hits = pipeline.retrieve(body.query, body.top_k)
     return RetrieveResponse(
         query=body.query,
         hits=[
@@ -121,62 +99,5 @@ def query(
     body: QueryRequest,
     pipeline: RAGPipeline = Depends(get_pipeline),
 ) -> QueryResponse:
-    result = pipeline.query(
-        body.question,
-        body.top_k,
-        score_threshold=body.score_threshold,
-        prompt_version=body.prompt_version,
-    )
-    g = result.pop("grounding")
-    return QueryResponse(
-        **result,
-        grounding=GroundingReport(
-            grounded=g["grounded"],
-            reason=g["reason"],
-            top_score=g["top_score"],
-            is_refusal=g["is_refusal"],
-        ),
-    )
-
-
-@router.post("/experiments/retrieval", response_model=ExperimentResponse)
-def retrieval_experiment(
-    body: ExperimentRequest,
-    pipeline: RAGPipeline = Depends(get_pipeline),
-) -> ExperimentResponse:
-    result = pipeline.run_retrieval_experiment(
-        body.query,
-        top_k_values=body.top_k_values,
-        score_thresholds=body.score_thresholds,
-    )
-    return ExperimentResponse(
-        query=result["query"],
-        runs=[ExperimentRun(**r) for r in result["runs"]],
-    )
-
-
-@router.post("/evaluate/retrieval", response_model=EvaluateResponse)
-def evaluate_retrieval(
-    body: EvaluateRequest,
-    pipeline: RAGPipeline = Depends(get_pipeline),
-) -> EvaluateResponse:
-    settings = get_settings()
-    bench_path = Path(body.benchmark_path or settings.eval_benchmark_path)
-    benchmark = load_benchmark(bench_path)
-    k_values = body.k_values or settings.eval_k_list
-
-    def retrieve_fn(q: str, k: int):
-        return pipeline.retrieve(q, k)
-
-    report = run_retrieval_evaluation(
-        benchmark,
-        retrieve_fn,
-        k_values=k_values,
-        default_top_k=body.top_k,
-    )
-    return EvaluateResponse(
-        metrics=report["metrics"],
-        k_values=report["k_values"],
-        per_query=report["per_query"],
-        benchmark_path=str(bench_path),
-    )
+    result = pipeline.query(body.question, body.top_k)
+    return QueryResponse(**result)
