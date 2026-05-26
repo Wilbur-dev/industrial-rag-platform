@@ -164,9 +164,15 @@ def evaluate_retrieval(
     bench_path = Path(body.benchmark_path or settings.eval_benchmark_path)
     benchmark = load_benchmark(bench_path)
     k_values = body.k_values or settings.eval_k_list
+    collection = body.collection_name or settings.topk_eval_collection
+    eval_pipeline = (
+        pipeline
+        if pipeline._store.collection_name == collection
+        else RAGPipeline(collection_name=collection)
+    )
 
     def retrieve_fn(q: str, k: int):
-        return pipeline.retrieve(q, k)
+        return eval_pipeline.retrieve(q, k)
 
     report = run_retrieval_evaluation(
         benchmark,
@@ -179,4 +185,5 @@ def evaluate_retrieval(
         k_values=report["k_values"],
         per_query=report["per_query"],
         benchmark_path=str(bench_path),
+        collection_name=collection,
     )

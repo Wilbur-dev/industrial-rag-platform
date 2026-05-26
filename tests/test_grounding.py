@@ -36,3 +36,14 @@ def test_refusal_detection():
 def test_assess_grounding_no_chunks():
     g = assess_grounding("I don't know.", [])
     assert g["reason"] == "no_retrieval"
+    assert g["is_refusal"] is True
+    assert g["grounded"] is True
+
+
+def test_assess_grounding_no_chunks_pipeline_refusal():
+    answer = (
+        "I don't have enough information in the knowledge base to answer this question."
+    )
+    g = assess_grounding(answer, [])
+    assert g["is_refusal"] is True
+    assert g["grounded"] is True

@@ -49,7 +49,8 @@ curl -X POST "http://127.0.0.1:8000/api/v1/query" \
   -H "Content-Type: application/json" \
   -d '{"question": "Why do we use chunk overlap?", "prompt_version": "v2_strict_citations"}'
 
-# 生成评估集并跑 Hit@K / MRR（需 Qdrant 有数据）
+# Day 3–4：corpus_topk 进 documents_topk（与 rag_overview 的 documents 分离）
+python scripts/run_retrieval_experiments.py --part topk
 python scripts/build_eval_benchmark.py
 curl -X POST "http://127.0.0.1:8000/api/v1/evaluate/retrieval" \
   -H "Content-Type: application/json" \

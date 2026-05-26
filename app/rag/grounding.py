@@ -11,6 +11,7 @@ _REFUSAL_PHRASES = (
     "cannot answer",
     "can't answer",
     "not enough information",
+    "enough information in the knowledge",
     "no relevant",
     "insufficient context",
     "no context",
@@ -67,11 +68,13 @@ def assess_grounding(
     Post-generation grounding check for production guardrails.
     """
     if not chunks:
+        refusal = is_refusal_answer(answer)
         return {
-            "grounded": is_refusal_answer(answer),
+            "grounded": refusal,
             "reason": "no_retrieval",
             "citation_check": validate_citations(answer, 0),
             "top_score": 0.0,
+            "is_refusal": refusal,
         }
 
     top_score = max(c.score for c in chunks)

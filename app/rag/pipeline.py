@@ -19,9 +19,9 @@ logger = get_logger(__name__)
 
 
 class RAGPipeline:
-    def __init__(self) -> None:
+    def __init__(self, collection_name: str | None = None) -> None:
         self._embedder = EmbeddingService()
-        self._store = VectorStore()
+        self._store = VectorStore(collection_name=collection_name)
         self._store.ensure_collection(self._embedder.dimension)
 
     def index_document(

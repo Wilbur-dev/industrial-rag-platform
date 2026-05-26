@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333
     qdrant_collection: str = "documents"
+    # Isolated index for corpus_topk.md (Day 3 Part A + Day 4 eval) — not rag_overview.md
+    topk_eval_collection: str = "documents_topk"
 
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"

@@ -96,6 +96,10 @@ class EvaluateRequest(BaseModel):
     benchmark_path: str | None = None
     k_values: list[int] | None = None
     top_k: int = Field(default=10, ge=1, le=50)
+    collection_name: str | None = Field(
+        default=None,
+        description="Qdrant collection for eval; default topk_eval_collection (not rag_overview index)",
+    )
 
 
 class EvaluateResponse(BaseModel):
@@ -103,6 +107,7 @@ class EvaluateResponse(BaseModel):
     k_values: list[int]
     per_query: list[dict]
     benchmark_path: str
+    collection_name: str
 
 
 class ErrorResponse(BaseModel):

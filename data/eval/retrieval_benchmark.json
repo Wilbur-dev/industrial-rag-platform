@@ -1,20 +1,30 @@
 [
   {
-    "query": "What is RAG?",
-    "relevant_chunk_ids": [],
-    "notes": "After ingest of data/sample/rag_overview.md, fill relevant_chunk_ids from /retrieve response"
+    "query": "Why should teams log both hits and hits_after_threshold?",
+    "relevant_chunk_ids": [
+      "0cfc2644-d53c-4ec6-b9b5-5f39c1bb263e"
+    ],
+    "notes": "Manual gold: Score threshold tuning section (hits / hits_after_threshold logging)"
   },
   {
-    "query": "Why do we use chunk overlap?",
-    "relevant_chunk_ids": [],
-    "notes": "Run scripts/build_eval_benchmark.py after indexing sample doc"
+    "query": "What does top_k control in the retrieval pipeline?",
+    "relevant_chunk_ids": [
+      "aeff1e10-3d94-48db-ad7c-c415b65b4f12"
+    ],
+    "notes": "Manual gold: Top-k selection guidelines in same chunk"
   },
   {
-    "query": "How does hallucination control work?",
-    "relevant_chunk_ids": []
+    "query": "What failure mode is called a threshold cliff?",
+    "relevant_chunk_ids": [
+      "32f6f289-fba4-4112-a4fb-2ec5c1a44de9"
+    ],
+    "notes": "Manual gold: Failure modes § Threshold cliff; auto top-2 were 0cfc/0b0be (threshold wording only), rank-3 correct"
   },
   {
-    "query": "What distance metric does Qdrant use?",
-    "relevant_chunk_ids": []
+    "query": "How do operators sweep score_threshold after a new embedding model?",
+    "relevant_chunk_ids": [
+      "b379b817-10c9-492b-ad2b-389637e3f48b"
+    ],
+    "notes": "Manual gold: Opening § score_threshold sweep after new embedding model"
   }
 ]
