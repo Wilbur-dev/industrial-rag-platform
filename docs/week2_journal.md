@@ -538,13 +538,6 @@ curl -s -X POST "http://127.0.0.1:8000/api/v1/evaluate/retrieval" \
 3. **可复现实验比漂亮结论更重要**  
    若 benchmark 或 collection 混用，结论会波动；报告里必须写清数据来源和复现实验命令。
 
-### 截图对应（`evidence/screenshots/week2/`）
-
-| 文件 | 内容 |
-|------|------|
-| `week2-day7-design-report.png` | 打开 `docs/retrieval_design_report.md`，展示 Goals + Architecture + Design decisions（同屏） |
-| `week2-day7-interview-qa.png` | README 的 Week 2 面试追问区，展示 5 个高频问题与回答提纲 |
-
 ### 面试一句话
 
 Day 7 的交付是把 Week 2 工程实践抽象成一套可复用的检索设计方法：先定义指标与协议，再做参数实验和故障定位，最后沉淀为可复现、可答辩的设计报告。
