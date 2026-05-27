@@ -1,13 +1,20 @@
-"""API routes — health, ingest, retrieve, query."""
+"""API routes — health, ingest, retrieve, query, evaluation (Week 2)."""
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 
 from app.api.deps import get_pipeline
 from app.api.schemas import (
+    EvaluateRequest,
+    EvaluateResponse,
+    ExperimentRequest,
+    ExperimentResponse,
+    ExperimentRun,
+    GroundingReport,
     HealthResponse,
     IngestResponse,
+    PromptVersionInfo,
     QueryRequest,
     QueryResponse,
     RetrieveHit,
@@ -15,8 +22,11 @@ from app.api.schemas import (
     RetrieveResponse,
 )
 from app.config import get_settings
+from app.exceptions import IngestionError, NotFoundError, RetrievalError
 from app.rag.pipeline import RAGPipeline
+from app.rag.prompts import PromptBuilder
 from app.rag.vector_store import VectorStore
+from evaluation.runner import load_benchmark, run_retrieval_evaluation
 
 router = APIRouter()
 
@@ -40,7 +50,15 @@ def health_qdrant() -> dict:
             return {"qdrant": "up", "collection": "not_created_yet"}
         return {"qdrant": "up", **store.collection_info()}
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Qdrant unavailable: {exc}") from exc
+        raise RetrievalError(
+            "Qdrant unavailable",
+            details={"error": str(exc)},
+        ) from exc
+
+
+@router.get("/prompts", response_model=list[PromptVersionInfo])
+def list_prompts() -> list[PromptVersionInfo]:
+    return [PromptVersionInfo(**v) for v in PromptBuilder.list_versions()]
 
 
 @router.post("/ingest/upload", response_model=IngestResponse)
@@ -50,11 +68,11 @@ async def ingest_upload(
 ) -> IngestResponse:
     data = await file.read()
     if not file.filename:
-        raise HTTPException(status_code=400, detail="Missing filename")
+        raise IngestionError("Missing filename")
     try:
         result = pipeline.index_upload(file.filename, data)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise IngestionError(str(exc)) from exc
     return IngestResponse(**result)
 
 
@@ -65,11 +83,11 @@ def ingest_path(
 ) -> IngestResponse:
     p = Path(path)
     if not p.exists():
-        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+        raise NotFoundError(f"File not found: {path}")
     try:
         result = pipeline.index_file(p)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise IngestionError(str(exc)) from exc
     return IngestResponse(**result)
 
 
@@ -78,7 +96,11 @@ def retrieve(
     body: RetrieveRequest,
     pipeline: RAGPipeline = Depends(get_pipeline),
 ) -> RetrieveResponse:
-    hits = pipeline.retrieve(body.query, body.top_k)
+    hits = pipeline.retrieve(
+        body.query,
+        body.top_k,
+        score_threshold=body.score_threshold,
+    )
     return RetrieveResponse(
         query=body.query,
         hits=[
@@ -99,7 +121,6 @@ def query(
     body: QueryRequest,
     pipeline: RAGPipeline = Depends(get_pipeline),
 ) -> QueryResponse:
-<<<<<<< HEAD
     result = pipeline.query(
         body.question,
         body.top_k,
@@ -166,7 +187,3 @@ def evaluate_retrieval(
         benchmark_path=str(bench_path),
         collection_name=collection,
     )
-=======
-    result = pipeline.query(body.question, body.top_k)
-    return QueryResponse(**result)
->>>>>>> 649b579488bf5df1d97f8f33acd9276ea322a050

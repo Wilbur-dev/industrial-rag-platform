@@ -14,9 +14,19 @@ class IngestResponse(BaseModel):
     latency_ms: float
 
 
+class PromptVersionInfo(BaseModel):
+    version: str
+    description: str
+
+
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1)
     top_k: int | None = Field(default=None, ge=1, le=20)
+    score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    prompt_version: str | None = Field(
+        default=None,
+        description="v1_grounded | v2_strict_citations | v3_refusal_aware",
+    )
 
 
 class Citation(BaseModel):
@@ -26,18 +36,28 @@ class Citation(BaseModel):
     excerpt: str
 
 
+class GroundingReport(BaseModel):
+    grounded: bool
+    reason: str
+    top_score: float
+    is_refusal: bool
+
+
 class QueryResponse(BaseModel):
     question: str
     answer: str
     generation_mode: str
+    prompt_version: str
     citations: list[Citation]
     retrieval_count: int
+    grounding: GroundingReport
     latency_ms: float
 
 
 class RetrieveRequest(BaseModel):
     query: str = Field(..., min_length=1)
     top_k: int | None = Field(default=None, ge=1, le=20)
+    score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class RetrieveHit(BaseModel):
@@ -51,7 +71,6 @@ class RetrieveResponse(BaseModel):
     query: str
     hits: list[RetrieveHit]
     count: int
-<<<<<<< HEAD
 
 
 class ExperimentRequest(BaseModel):
@@ -95,5 +114,3 @@ class ErrorResponse(BaseModel):
     error_code: str
     message: str
     details: dict | None = None
-=======
->>>>>>> 649b579488bf5df1d97f8f33acd9276ea322a050
