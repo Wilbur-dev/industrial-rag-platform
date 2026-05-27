@@ -54,7 +54,7 @@ Never ingest this sweep file into the main collection during Part B; Part A uses
 ## Section C — score threshold interaction
 
 Thresholding after retrieval is independent of chunk_size but couples in user-visible quality:
-tiny chunks with low scores may全部被过滤 when threshold is 0.35, yielding empty context.
+tiny chunks with low scores may be entirely filtered out when threshold is 0.35, yielding empty context.
 Document both raw hit counts and post-threshold counts when publishing experiment tables.
 
 ## Section D — interview narrative
