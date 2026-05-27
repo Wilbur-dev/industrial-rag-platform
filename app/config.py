@@ -21,10 +21,17 @@ class Settings(BaseSettings):
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_batch_size: int = 32
     top_k: int = 5
+    score_threshold: float | None = None
+    min_grounding_score: float = 0.0
+    prompt_version: str = "v1_grounded"
+    eval_k_values: str = "1,3,5"
+    eval_benchmark_path: str = "data/eval/retrieval_benchmark.json"
 
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333
     qdrant_collection: str = "documents"
+    # Isolated index for corpus_topk.md (Day 3 Part A + Day 4 eval) — not rag_overview.md
+    topk_eval_collection: str = "documents_topk"
 
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
@@ -32,6 +39,10 @@ class Settings(BaseSettings):
     @property
     def qdrant_url(self) -> str:
         return f"http://{self.qdrant_host}:{self.qdrant_port}"
+
+    @property
+    def eval_k_list(self) -> list[int]:
+        return [int(x.strip()) for x in self.eval_k_values.split(",") if x.strip()]
 
 
 @lru_cache

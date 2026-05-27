@@ -11,13 +11,17 @@ logger = get_logger(__name__)
 
 
 class VectorStore:
-    def __init__(self) -> None:
+    def __init__(self, collection_name: str | None = None) -> None:
         settings = get_settings()
-        self._collection = settings.qdrant_collection
+        self._collection = collection_name or settings.qdrant_collection
         self._client = QdrantClient(
             host=settings.qdrant_host,
             port=settings.qdrant_port,
         )
+
+    @property
+    def collection_name(self) -> str:
+        return self._collection
 
     def ensure_collection(self, vector_size: int) -> None:
         exists = self._client.collection_exists(self._collection)
@@ -91,6 +95,22 @@ class VectorStore:
                 )
             )
         return results
+
+    def count_by_source(self, source: str) -> int:
+        """Count indexed points whose payload source matches (for idempotent ingest)."""
+        result = self._client.count(
+            collection_name=self._collection,
+            count_filter=qmodels.Filter(
+                must=[
+                    qmodels.FieldCondition(
+                        key="source",
+                        match=qmodels.MatchValue(value=source),
+                    )
+                ]
+            ),
+            exact=True,
+        )
+        return int(result.count)
 
     def collection_info(self) -> dict:
         info = self._client.get_collection(self._collection)
