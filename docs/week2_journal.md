@@ -316,23 +316,235 @@ Hit@K 看「有没有」；MRR 看「排第几」；gold label 必须按正文�
 
 ## Day 5 — Structured error handling
 
+### 完成内容与代码位置
+
 | 项目 | 记录 |
 |------|------|
-| 完成内容 | `app/exceptions.py`，`app/api/error_handlers.py` |
-| 验证 | `ingest/path` 404 返回 `error_code: not_found` |
-| 截图 | `week2-day5-error-json.png` |
+| 错误模型 | `app/exceptions.py`：`AppError` + `NotFoundError` / `IngestionError` / `RetrievalError` / `GenerationError` / `EvaluationError` |
+| 统一处理 | `app/api/error_handlers.py`：注册 `AppError` 与兜底 `Exception` 的 JSON handler |
+| 路由接入 | `app/main.py`：`register_exception_handlers(app)` |
+| 触发点示例 | `app/api/routes.py`：`POST /ingest/path` 文件不存在时抛 `NotFoundError` |
+| 响应约定 | `app/api/schemas.py`：`ErrorResponse`（`error_code`、`message`、`details`） |
+| API 测试 | `tests/test_api_week2.py::test_structured_error_not_found` |
+
+### 目标：把错误变成稳定协议（而不是字符串）
+
+Day 5 的重点不是“多写几个 try/except”，而是把错误输出收敛成稳定 JSON protocal，便于前端和日志系统消费：
+
+```json
+{
+  "error_code": "not_found",
+  "message": "File not found: /nonexistent/file.md",
+  "details": {}
+}
+```
+
+其中 `error_code` 面向程序判定，`message` 面向人读，`details` 用于排障上下文。
+
+### 验证命令（手工）
+
+```bash
+# 1) 触发 Day 5 核心场景：路径不存在
+curl -s -X POST "http://127.0.0.1:8000/api/v1/ingest/path?path=/nonexistent/file.md" \
+  | python3 -m json.tool
+```
+
+预期：
+- HTTP 404
+- body 含 `error_code: not_found`
+- `message` 包含具体路径，便于定位
+
+可选补充（验证兜底）：
+
+```bash
+# Qdrant 不可用时（或故障注入）会返回 retrieval_error
+curl -s "http://127.0.0.1:8000/api/v1/health/qdrant" | python3 -m json.tool
+```
+
+### 自动化测试（Day 5 相关）
+
+```bash
+pytest tests/test_api_week2.py::test_structured_error_not_found -v
+```
+
+如果要和 Day 6 串起来，可直接跑：
+
+```bash
+pytest tests/ -v
+```
+
+### 学习过程中的思考（互动记录）
+
+1. **为什么要有 `error_code` 而不只看 HTTP 状态码**  
+   404 只说明“没找到”，但业务层仍需要知道是 `not_found`、`benchmark_missing` 还是其它场景。`error_code` 让客户端逻辑稳定，不依赖 message 文案。
+
+2. **为什么把 handler 放在全局而不是每个路由自己 return JSON**  
+   每个路由手写 JSONResponse 容易格式漂移；统一 handler 能保证全 API 响应一致，并减少重复代码。
+
+3. **为什么保留兜底 `internal_error`**  
+   未预期异常不能原样回给客户端（避免泄露栈信息）；统一转成 500 + 固定 `error_code`，日志里记录真实异常即可。
+
+### 截图对应（`evidence/screenshots/week2/`）
+
+| 文件 | 内容 |
+|------|------|
+| `week2-day5-error-json.png` | `POST /ingest/path` 使用不存在路径时，返回 404 + `error_code=not_found`（响应 JSON 清晰可见） |
+
+### 面试一句话
+
+Day 5 把“异常”升级成“协议”：路由只抛业务错误类型，统一 handler 输出标准 JSON（`error_code` + `message` + `details`），实现客户端可编程处理和线上可观测性。
 
 ## Day 6 — Unit tests + API tests
 
+### 完成内容与测试文件
+
 | 项目 | 记录 |
 |------|------|
-| 命令 | `pytest tests/ -v` |
-| 新增 | `test_metrics`, `test_prompts`, `test_grounding`, `test_api_week2` |
-| 截图 | `week2-day6-pytest-green.png` |
+| 统一回归命令 | `pytest tests/ -v` |
+| 指标测试 | `tests/test_metrics.py`（Hit@K / Recall@K / MRR） |
+| Prompt 测试 | `tests/test_prompts.py`（版本注册、消息构建） |
+| Grounding 测试 | `tests/test_grounding.py`（拒答检测、引用合法性、score threshold 过滤） |
+| API 测试 | `tests/test_api_week2.py`（`/prompts`、`/query`、`/experiments/retrieval`、结构化错误） |
+| 截图 | `week2-day6-pytest-allpass.png` |
+
+### Day 6 的目标：把 Week 2 能力变成“可回归”
+
+Day 1~5 已完成功能与实验；Day 6 要验证的是：后续改 prompt、改检索参数、改错误处理时，不会把已有行为悄悄改坏。  
+因此测试分层为：
+- **单元测试**：验证纯逻辑（metrics、grounding、prompts）；
+- **API 测试**：验证接口契约（字段、状态码、错误 JSON）。
+
+### 运行方式（建议顺序）
+
+```bash
+# 1) 一次性回归（Day 6 主命令）
+pytest tests/ -v
+```
+
+按模块排查时可分别运行：
+
+```bash
+pytest tests/test_prompts.py -v
+pytest tests/test_grounding.py -v
+pytest tests/test_metrics.py -v
+pytest tests/test_api_week2.py -v
+```
+
+### 覆盖点（本仓库 Week 2 视角）
+
+1. **Prompt 版本化（Day 1）**  
+   `test_prompts.py` 确保版本可枚举、构建消息结构稳定，避免改模板时破坏协议。
+
+2. **Grounding 护栏（Day 2）**  
+   `test_grounding.py` 覆盖 `no_retrieval`、`missing_citations`、非法引用下标、拒答识别等关键分支。
+
+3. **检索评估指标（Day 4）**  
+   `test_metrics.py` 固定 Hit@K / Recall@K / MRR 定义，防止后续重构导致指标语义漂移。
+
+4. **Week2 API 行为（Day 1/2/3/5）**  
+   `test_api_week2.py` 检查 `/prompts`、`/query`、`/experiments/retrieval` 以及 `not_found` 结构化错误返回。
+
+### 学习过程中的思考（互动记录）
+
+1. **为什么 Day 6 还要测 Day 1 的 prompt**  
+   Prompt 是“可变业务逻辑”，最容易被迭代影响；不加测试，线上行为会难以复现。
+
+2. **为什么 API 测试里要保留错误场景**  
+   失败路径也是契约的一部分；客户端通常先依赖 `error_code` 做分支，不能只测 200 成功流。
+
+3. **为什么主命令用 `pytest tests/ -v`**  
+   这是最接近 CI 的一键回归入口，适合交付前做“总开关”验证。
+
+### 截图对应（`evidence/screenshots/week2/`）
+
+| 文件 | 内容 |
+|------|------|
+| `week2-day6-pytest-allpass.png` | 执行 `pytest tests/ -v`，显示 collected 数量与最终 `passed` 全绿结果 |
+| `week2-day6-pytest-api-test.png` | 执行 `pytest tests/test_api_week2.py -v`，突出 Week2 API protocol测试通过 |
+
+
+### 面试一句话
+
+Day 6 的价值是把 Week 2 从“能跑”提升到“可回归”：用单测锁定算法与护栏语义，用 API 测试锁定接口与错误契约，保证后续迭代不破坏已验证能力。
 
 ## Day 7 — Retrieval design report
 
+### 完成内容与交付物
+
 | 项目 | 记录 |
 |------|------|
-| 交付 | `docs/retrieval_design_report.md` |
-| 面试自测 | 见 README Week 2 追问 |
+| 最终文档 | `docs/retrieval_design_report.md` |
+| 文档目标 | 汇总 Week 2 检索设计：Prompt 版本、grounding 护栏、实验入口、评估指标、故障排查 |
+| 架构补充 | 报告内 mermaid 链路：`/query -> retrieve -> prompts -> LLM -> grounding` |
+| 设计决策 | Prompt versioning、threshold 后过滤、grounding 与 answer 分离、benchmark 半自动构建 |
+| 面试素材 | README「Week 2 面试追问」5 题（prompt 版本化、Hit/Recall、MRR、threshold、debug 路线） |
+
+### Day 7 的目标：把 Week 2 从“实现”变成“可讲清楚的设计”
+
+前 6 天完成了代码、实验与测试；Day 7 的核心是沉淀一份可复盘、可解释、可面试复述的设计报告。  
+报告不是重复 API 文档，而是强调：
+- 为什么这样设计（trade-off）；
+- 出问题时如何定位（debug playbook）；
+- 如何把实验结果连接到工程决策（而不是只报数字）。
+
+### 报告主要内容（已落地）
+
+1. **Goals**  
+   明确 Week 2 目标是提升检索质量可见性，为 Week 3 reranker 做准备。
+
+2. **Architecture additions**  
+   用流程图和组件表说明新增模块职责：`prompts.py`、`grounding.py`、`metrics.py`、`exceptions.py`。
+
+3. **Experiments section**  
+   约定实验入口与填表方式（`run_week2_demo.sh` + `build_eval_benchmark.py` + `/evaluate/retrieval`）。
+
+4. **Design decisions**  
+   解释关键选择背后的理由（可回滚、低成本过滤、客户端可拦截 ungrounded、人工校正 gold）。
+
+5. **Failure modes & debug**  
+   列出常见症状与快速检查路径（Hit@K=0、chunks 全被过滤、`grounded=false`、Qdrant 故障）。
+
+6. **Interview talking points**  
+   给出可直接复述的面试短答，和 README 追问形成对应关系。
+
+### 运行与验证（Day 7 交付前检查）
+
+```bash
+# 1) 重新跑 Week 2 演示链路（确保报告中的命令可执行）
+./scripts/run_week2_demo.sh
+
+# 2) 生成/校对 benchmark（如有重新 ingest，需要重标）
+python scripts/build_eval_benchmark.py
+
+# 3) 复算评估指标，用于填报告实验表
+curl -s -X POST "http://127.0.0.1:8000/api/v1/evaluate/retrieval" \
+  -H "Content-Type: application/json" \
+  -d '{"top_k": 10}' | python3 -m json.tool
+```
+
+校验点：
+- 报告中的路径与模块名与代码一致；
+- 报告里的命令在本机可执行；
+- 指标与 Day 4 口径一致（Hit@K / Recall@K / MRR 定义不漂移）。
+
+### 学习过程中的思考（互动记录）
+
+1. **设计报告不是“再写一遍 README”**  
+   README 偏快速上手；设计报告要讲清楚“为何这样做、如何验证、如何排障”。
+
+2. **实验数字要有上下文才有价值**  
+   单独给 Hit@5=1.0 信息不足；必须配合 Hit@1、MRR、标注方式与 collection 隔离策略一起解释。
+
+3. **可复现实验比漂亮结论更重要**  
+   若 benchmark 或 collection 混用，结论会波动；报告里必须写清数据来源和复现实验命令。
+
+### 截图对应（`evidence/screenshots/week2/`）
+
+| 文件 | 内容 |
+|------|------|
+| `week2-day7-design-report.png` | 打开 `docs/retrieval_design_report.md`，展示 Goals + Architecture + Design decisions（同屏） |
+| `week2-day7-interview-qa.png` | README 的 Week 2 面试追问区，展示 5 个高频问题与回答提纲 |
+
+### 面试一句话
+
+Day 7 的交付是把 Week 2 工程实践抽象成一套可复用的检索设计方法：先定义指标与协议，再做参数实验和故障定位，最后沉淀为可复现、可答辩的设计报告。
