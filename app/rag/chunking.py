@@ -6,10 +6,22 @@ from app.config import get_settings
 from app.rag.models import Chunk, Document
 
 
-def chunk_document(doc: Document) -> list[Chunk]:
+def chunk_document(
+    doc: Document,
+    *,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
+) -> list[Chunk]:
     settings = get_settings()
-    size = settings.chunk_size
-    overlap = settings.chunk_overlap
+    size = chunk_size if chunk_size is not None else settings.chunk_size
+    overlap = (
+        chunk_overlap if chunk_overlap is not None else settings.chunk_overlap
+    )
+
+    if size <= 0:
+        raise ValueError("chunk_size must be greater than 0")
+    if overlap < 0:
+        raise ValueError("chunk_overlap must be >= 0")
     if overlap >= size:
         raise ValueError("chunk_overlap must be smaller than chunk_size")
 

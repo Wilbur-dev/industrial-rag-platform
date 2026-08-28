@@ -55,10 +55,17 @@ def test_query_no_context_grounding():
 
 
 def test_structured_error_not_found():
-    resp = client.post("/api/v1/ingest/path?path=/nonexistent/file.md")
+    pipe = MagicMock()
+    _override_pipeline(pipe)
+    try:
+        resp = client.post("/api/v1/ingest/path?path=/nonexistent/file.md")
+    finally:
+        _clear_overrides()
+
     assert resp.status_code == 404
     data = resp.json()
     assert data["error_code"] == "not_found"
+    pipe.index_file.assert_not_called()
 
 
 def test_retrieval_experiment_endpoint():
